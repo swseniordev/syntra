@@ -1,0 +1,10 @@
+{
+  "primary_color": "#1458D4",
+  "background_color": "#F5F8FF",
+  "text_color": "#172442",
+  "title_initial": "Bienvenido a Syntra",
+  "title_reset": "Nueva contraseña de Syntra",
+  "intro_initial": "Se creó tu acceso a Syntra. Usa estos datos para ingresar:",
+  "intro_reset": "Se generó una nueva contraseña para tu acceso a Syntra:",
+  "footer": "Ingresa únicamente desde la dirección oficial de Syntra."
+}

@@ -1,0 +1,1 @@
+"""Capacidades transversales del backend."""

@@ -1,0 +1,33 @@
+"""Puertos para persistencia y auditoría de Prompts."""
+
+from __future__ import annotations
+
+from typing import Any, Protocol, Self
+
+from app.modules.auditoria.application.ports import AuditWriter
+
+Prompt = dict[str, Any]
+
+
+class DefaultCollision(Exception):
+    pass
+
+
+class PromptRepository(Protocol):
+    def list(self, query: str, state: str, kind: str | None, network: str | None,
+             after_id: int | None, limit: int) -> tuple[int, list[Prompt]]: ...
+    def get(self, prompt_id: int, *, for_update: bool = False) -> Prompt | None: ...
+    def lock_default_scope(self, kind: str, network: str | None) -> None: ...
+    def demote_default(self, kind: str, network: str | None, exclude_id: int | None, actor_id: int) -> list[tuple[Prompt, Prompt]]: ...
+    def create(self, values: Prompt, actor_id: int) -> Prompt: ...
+    def update(self, prompt_id: int, values: Prompt, actor_id: int) -> Prompt: ...
+    def versions(self, prompt_id: int) -> list[dict[str, Any]]: ...
+
+
+class PromptUnitOfWork(Protocol):
+    prompts: PromptRepository
+    audit: AuditWriter
+
+    def __enter__(self) -> Self: ...
+    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None: ...
+    def commit(self) -> None: ...

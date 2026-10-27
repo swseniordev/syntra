@@ -1,0 +1,90 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  color-scheme: light;
+  --syntra-navy: #071835;
+  --syntra-cyan: #04b8fb;
+  --syntra-blue: #1293f8;
+  --syntra-indigo: #3655d2;
+  --syntra-indigo-violet: #535fe9;
+  --syntra-violet: #7850ee;
+  --gradient: linear-gradient(135deg, var(--syntra-cyan), var(--syntra-blue) 30%, var(--syntra-indigo) 65%, var(--syntra-violet));
+  --syntra-gradient-ui: linear-gradient(135deg, var(--syntra-blue) 0%, var(--syntra-indigo) 62%, var(--syntra-violet) 100%);
+  --bg: color-mix(in srgb, var(--syntra-navy) 4%, #fff);
+  --syntra-gradient: linear-gradient(135deg, #04B8FB 0%, #1293F8 30%, #3655D2 65%, #7850EE 100%);
+  --bg-2: color-mix(in srgb, var(--syntra-navy) 7%, #fff);
+  --surface: #fff;
+  --surface-soft: color-mix(in srgb, var(--syntra-indigo) 3%, #fff);
+  --surface-2: color-mix(in srgb, var(--syntra-indigo) 3%, #fff);
+  --surface-3: color-mix(in srgb, var(--syntra-indigo) 7%, #fff);
+  --border: color-mix(in srgb, var(--syntra-navy) 11%, #fff);
+  --border-strong: color-mix(in srgb, var(--syntra-navy) 21%, #fff);
+  --text: var(--syntra-navy);
+  --text-2: color-mix(in srgb, var(--syntra-navy) 74%, #fff);
+  --text-3: color-mix(in srgb, var(--syntra-navy) 54%, #fff);
+  --primary-soft: color-mix(in srgb, var(--syntra-blue) 11%, transparent);
+  --primary-ink: var(--syntra-indigo);
+  --accent: var(--syntra-violet);
+  --accent-soft: color-mix(in srgb, var(--syntra-violet) 12%, transparent);
+  --focus: color-mix(in srgb, var(--syntra-blue) 38%, transparent);
+  --ok: #0e8f6a;
+  --ok-soft: rgba(14,143,106,.12);
+  --warn: #a86a00;
+  --warn-soft: rgba(237,161,0,.16);
+  --err: #d63a3a;
+  --err-soft: rgba(229,72,77,.12);
+  --info: var(--syntra-indigo);
+  --info-soft: color-mix(in srgb, var(--syntra-blue) 12%, transparent);
+  --muted-soft: color-mix(in srgb, var(--syntra-navy) 8%, transparent);
+  --shadow: 0 4px 16px -4px color-mix(in srgb, var(--syntra-navy) 12%, transparent), 0 2px 6px -2px color-mix(in srgb, var(--syntra-navy) 7%, transparent);
+  --shadow-lg: 0 24px 60px -12px color-mix(in srgb, var(--syntra-navy) 30%, transparent);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --font: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Sora', var(--font);
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --scroll-track: #edf3fa;
+  --scroll-thumb: #1293f8;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: color-mix(in srgb, #000 35%, var(--syntra-navy));
+  --bg-2: color-mix(in srgb, #000 20%, var(--syntra-navy));
+  --surface: color-mix(in srgb, var(--syntra-indigo) 7%, var(--syntra-navy));
+  --surface-soft: color-mix(in srgb, var(--syntra-indigo) 12%, var(--syntra-navy));
+  --surface-2: color-mix(in srgb, var(--syntra-indigo) 12%, var(--syntra-navy));
+  --surface-3: color-mix(in srgb, var(--syntra-indigo) 19%, var(--syntra-navy));
+  --border: color-mix(in srgb, var(--syntra-indigo) 26%, var(--syntra-navy));
+  --border-strong: color-mix(in srgb, var(--syntra-indigo) 40%, var(--syntra-navy));
+  --text: #eef3fc;
+  --text-2: color-mix(in srgb, #fff 72%, var(--syntra-blue));
+  --text-3: color-mix(in srgb, #fff 50%, var(--syntra-indigo));
+  --primary-soft: color-mix(in srgb, var(--syntra-blue) 18%, transparent);
+  --primary-ink: var(--syntra-cyan);
+  --accent-soft: color-mix(in srgb, var(--syntra-violet) 22%, transparent);
+  --focus: color-mix(in srgb, var(--syntra-cyan) 48%, transparent);
+  --ok: #34c38f;
+  --warn: #e3a92b;
+  --err: #f06565;
+  --info: var(--syntra-cyan);
+  --shadow: 0 6px 20px -6px rgba(0,0,0,.5);
+  --shadow-lg: 0 30px 70px -10px rgba(0,0,0,.65);
+}
+
+* { box-sizing: border-box; }
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) var(--scroll-track); }
+*::-webkit-scrollbar { width: 7px; height: 7px; }
+*::-webkit-scrollbar-track { background: var(--scroll-track); }
+*::-webkit-scrollbar-thumb { border: 1px solid var(--scroll-track); border-radius: 8px; background: var(--scroll-thumb); }
+*::-webkit-scrollbar-thumb:hover { background: var(--syntra-indigo); }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; text-decoration: none; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid color-mix(in srgb, var(--syntra-blue) 45%, transparent); outline-offset: 2px; }

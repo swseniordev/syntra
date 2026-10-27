@@ -1,0 +1,81 @@
+# JavaScript
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Python
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/*.py[cod]
+**/*.egg-info/
+backend/.pip-tmp/
+backend/.test-db/
+worker/.test-tmp/
+
+# Local logs
+frontend/.vite.*.log
+backend/.api.*.log
+worker/.report-worker.*.log
+
+# Credenciales, certificados y respaldos locales
+.env
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.dump
+.local/
+
+
+# PostgreSQL backups
+**/*.backup
+**/*.sql.gz
+
+# Codex and AI-specific project instructions
+AGENTS.md
+AGENTS.override.md
+**/AGENTS.md
+**/AGENTS.override.md
+.codex/
+**/.codex/
+
+# Temporary test and initialization artifacts
+/.pytest-tmp-worker-20261023/
+/.syntra-init-trial-20261020/
+
+# Contexto interno de IA
+/docs/desarrollo/CONTEXTO_IA_SYNTRA.md
+
+# Evidencias e inventarios específicos de QA
+/docs/despliegues/cortes-bd/qa-2026-10-22/
+
+# Exportaciones y archivos de trabajo del proveedor Meltwater
+/docs/especificaciones/API Proveedores/Meltwater/busqueda_29251300.json
+/docs/especificaciones/API Proveedores/Meltwater/busqueda_29251300.xlsx
+/docs/especificaciones/API Proveedores/Meltwater/meltwater_export.py
+
+# Archivo comprimido pendiente de revisión
+/docs/especificaciones/docs_syntra.zip
+# Excluir toda la documentación, excepto las especificaciones oficiales
+/docs/*
+!/docs/especificaciones/
+
+# Dependencias locales
+frontend/node_modules/
+
+# Registros locales de ejecución
+**/*.log
+
+# Directorios temporales de pruebas del worker
+/worker/.pytest-*/
+/worker/.pytest_worker*/
+/worker/.test-tmp*/
+
+# Scripts y archivos locales de base de datos
+/database/
+
+# Ensayo local de navegador, dependiente de SQL excluido
+/backend/scripts/browser_trial.py
