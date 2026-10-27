@@ -21,6 +21,7 @@ export default defineConfig({
     proxy: { '/api/v1': { target: apiTarget, changeOrigin: false } },
   },
   test: {
+    include: ['tests/**/*.test.{ts,tsx}', 'tests/**/*.spec.{ts,tsx}'],
     environment: 'jsdom',
     setupFiles: './src/test-setup.ts',
     clearMocks: true,
