@@ -39,7 +39,8 @@ class FileRepository(Protocol):
     def list_lots(self, measurement_id: int, limit: int,
                   before: tuple[datetime, int] | None, origin: str | None) -> list[dict]: ...
     def enqueue(self, measurement: dict, file_ids: list[int], actor_id: int,
-                idempotency_key: str, options: dict[str, bool] | None) -> dict: ...
+                idempotency_key: str, options: dict[str, bool] | None,
+                mode: str) -> dict: ...
     def commit(self) -> None: ...
     def rollback(self) -> None: ...
 
@@ -193,13 +194,16 @@ class MeasurementFileUseCases:
 
     def enqueue(self, measurement_id: int, file_ids: list[int], actor_id: int,
                 global_access: bool, idempotency_key: str,
-                options: dict[str, bool] | None = None) -> dict:
+                options: dict[str, bool] | None = None,
+                mode: str = "upsert") -> dict:
         if not file_ids or len(file_ids) > 100 or len(set(file_ids)) != len(file_ids):
             raise FileProblem(400, "Selecciona entre 1 y 100 archivos sin repetir")
         if not 16 <= len(idempotency_key) <= 128:
             raise FileProblem(400, "Idempotency-Key debe tener entre 16 y 128 caracteres")
         if options is not None and set(options) - {"incorporar", "relevancia", "sentimiento", "clusters", "bots"}:
             raise FileProblem(400, "Las opciones al incorporar no son válidas")
+        if mode not in {"upsert", "reemplazar"}:
+            raise FileProblem(400, "El modo de carga debe ser upsert o reemplazar")
         measurement = self._measurement(measurement_id, actor_id, global_access)
         for file_id in file_ids:
             row = self.repository.locked_file(file_id, actor_id, global_access)
@@ -207,7 +211,7 @@ class MeasurementFileUseCases:
                     or row["sha256"] is None or not self.store.exists(row["s3_key"])):
                 raise FileProblem(400, "Uno de los archivos no pertenece a la medición o no terminó de cargarse")
         try:
-            result = self.repository.enqueue(measurement, file_ids, actor_id, idempotency_key, options)
+            result = self.repository.enqueue(measurement, file_ids, actor_id, idempotency_key, options, mode)
             self.repository.commit()
             return result
         except Exception:

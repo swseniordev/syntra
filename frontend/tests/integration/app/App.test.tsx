@@ -116,6 +116,9 @@ describe('Mediciones contra la estructura del mockup', () => {
       if (url.includes('/procesos?medicion_id=17')) return new Response(JSON.stringify([
         { id: 14, medicion_id: 17, tipo: 'preparar_medicion', estado: 'completado', procesados: 1, creado_en: '2026-10-24T15:00:00Z', duracion_ms: 1000 },
       ]), { status: 200 });
+      if (url.includes('/scrapers?medicion_id=17')) return new Response(JSON.stringify({ items: [
+        { id: 5, nombre: 'Monitoreo continuo', medicion_id: 17, estado_id: 1, ejecucion_auto: true, gn_activo: false, frecuencia_min: 30, proxima_ejecucion: null, redes: ['x', 'tiktok'] },
+      ] }), { status: 200 });
       if (url.includes('/clientes?')) return new Response(JSON.stringify({ items: [], siguiente: null }), { status: 200 });
       return new Response(JSON.stringify({ items: [], siguiente: null }), { status: 200 });
     });
@@ -153,7 +156,9 @@ describe('Mediciones contra la estructura del mockup', () => {
     fireEvent.click(screen.getByRole('tab', { name: /Cargas/ }));
     expect(await screen.findByRole('heading', { name: 'Historial de archivos cargados' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /Scraper/ }));
-    expect(screen.getByText(/no está disponible en el contrato de detalle actual/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Procesos de scraping' })).toBeInTheDocument();
+    expect(await screen.findByText('Monitoreo continuo')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ejecutar ahora/ })).toBeInTheDocument();
     for (const [label, pendingTitle] of [['Fiscalización', 'Fiscalización pendiente'], ['Registros', 'Registros pendiente'],
       ['Procesamiento', 'Procesamiento pendiente'], ['Informe', 'Informe pendiente']] as const) {
       fireEvent.click(screen.getByRole('tab', { name: new RegExp(label) }));

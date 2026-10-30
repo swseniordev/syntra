@@ -58,7 +58,8 @@ class PostgresOperationsReader:
     def _process_where(self, owner_id: int, filters: dict[str, Any], visible_types: tuple[str, ...]) -> tuple[str, list[Any]]:
         where = """creado_por=%s
                   AND ((tipo='correo_acceso') OR (tipo='exportacion' AND opciones->>'kind'='auditoria')
-                       OR (tipo='preparar_medicion' AND opciones->>'kind'='preparacion_medicion'))
+                       OR (tipo='preparar_medicion' AND opciones->>'kind'='preparacion_medicion')
+                       OR (tipo='carga_scraper'))
                   AND tipo = ANY(%s)
                   AND creado_en >= now()-interval '7 days' AND creado_en <= now()
                   AND (%s::text IS NULL OR tipo=%s)
@@ -93,7 +94,8 @@ class PostgresOperationsReader:
                      FROM prc.proceso
                     WHERE creado_por=%s AND tipo=ANY(%s)
                       AND ((tipo='correo_acceso') OR (tipo='exportacion' AND opciones->>'kind'='auditoria')
-                           OR (tipo='preparar_medicion' AND opciones->>'kind'='preparacion_medicion'))
+                           OR (tipo='preparar_medicion' AND opciones->>'kind'='preparacion_medicion')
+                           OR (tipo='carga_scraper'))
                  ), recent AS (
                    SELECT id,duracion_ms,sla_ms FROM own
                     WHERE finalizado_en >= now()-interval '30 days' AND finalizado_en <= now()
@@ -118,7 +120,8 @@ class PostgresOperationsReader:
                  FROM prc.proceso
                 WHERE creado_por=%s AND tipo=ANY(%s)
                   AND ((tipo='correo_acceso') OR (tipo='exportacion' AND opciones->>'kind'='auditoria')
-                       OR (tipo='preparar_medicion' AND opciones->>'kind'='preparacion_medicion'))
+                       OR (tipo='preparar_medicion' AND opciones->>'kind'='preparacion_medicion')
+                       OR (tipo='carga_scraper'))
                   AND finalizado_en IS NOT NULL AND finalizado_en <= now()
                   AND duracion_ms IS NOT NULL AND estado <> 'cancelado'
                 ORDER BY finalizado_en DESC,id DESC LIMIT 36""",

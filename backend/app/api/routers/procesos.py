@@ -45,7 +45,7 @@ def listar(
 ):
     visible_types = tuple(kind for kind, permission in (
         ("correo_acceso", "usuarios:editar"), ("exportacion", "auditoria:ver"),
-        ("preparar_medicion", "mediciones:ver"),
+        ("preparar_medicion", "mediciones:ver"), ("carga_scraper", "mediciones:ver"),
     ) if permission in principal.permissions)
     after = _decode_cursor(cursor)
     rows = monitor.processes(
@@ -68,7 +68,7 @@ def estadisticas(
 ):
     visible_types = tuple(kind for kind, permission in (
         ("correo_acceso", "usuarios:editar"), ("exportacion", "auditoria:ver"),
-        ("preparar_medicion", "mediciones:ver"),
+        ("preparar_medicion", "mediciones:ver"), ("carga_scraper", "mediciones:ver"),
     ) if permission in principal.permissions)
     return monitor.process_statistics(principal.user["id"], visible_types)
 

@@ -15,9 +15,11 @@ from psycopg.types.json import Jsonb
 
 from app.application.ingest_file import IngestFile
 from app.application.ingest_notice import finished_upload_notice
+from app.application.plan_compute import PlanCompute
 from app.config import WorkerSettings
-from app.domain.ingest_actions import initial_ingest_state
+from app.domain.ingest_actions import initial_ingest_state, replace_mode
 from app.domain.tasks import ClaimedTask
+from app.infrastructure.fanout import PostgresFanout, chunk_size
 from app.infrastructure.ingest_source import LocalIngestSource
 
 
@@ -136,7 +138,26 @@ class IngestQueue:
         if time.monotonic() >= self._next_notice_scan:
             self._next_notice_scan = time.monotonic() + 60
             self._notify_pending()
+            self._sweep_compute()
         return recovered
+
+    def _sweep_compute(self) -> None:
+        """Reparte cómputos de ingestas completadas cuyo fan-out no quedó registrado."""
+        try:
+            with self._connect() as conn:
+                pending = conn.execute(
+                    "SELECT p.id FROM prc.proceso p WHERE p.tipo IN "
+                    "('carga_archivo','carga_meltwater','carga_manual') AND p.estado='completado' "
+                    "AND p.finalizado_en>=now()-interval '1 day' "
+                    "AND NOT EXISTS (SELECT 1 FROM prc.proceso c WHERE c.idempotencia='computo:'||p.id) "
+                    "ORDER BY p.id DESC LIMIT 100",
+                ).fetchall()
+            for row in pending:
+                self._mark_replaced(row["id"])
+                self._plan_compute(row["id"])
+        except psycopg.Error as exc:
+            logger.warning("No se pudo barrer cómputos pendientes; SQLSTATE=%s",
+                           exc.sqlstate or "desconocido")
 
     def _notify_pending(self) -> None:
         """Recupera avisos que no se publicaron tras una caída o falta de permisos."""
@@ -254,6 +275,8 @@ class IngestQueue:
                     "offset": int(row["payload"].get("offset", 0)),
                     "cuenta_id": row["cuenta_id"], "medicion_id": row["medicion_id"],
                     "archivo_id": row["archivo_id"], "origin_id": origin["id"],
+                    "proceso_id": row["proceso_id"],
+                    "reemplazar": replace_mode(row["opciones"]),
                     "options": row["opciones"].get("al_incorporar") or {}}
 
     def _owned(self, conn: psycopg.Connection, task: ClaimedTask, worker_id: str) -> dict:
@@ -364,6 +387,13 @@ class IngestQueue:
                 if reason:
                     protected.append({"row": row["_fila"], "reason": reason, "duplicate": True,
                                       "data": {"url": row["url"]}})
+                elif job.get("reemplazar"):
+                    # Marca el registro como «visto» en esta carga para no eliminarlo al cierre.
+                    conn.execute(
+                        "UPDATE dat.registro_estado SET ultimo_proceso_id=%s "
+                        "WHERE cuenta_id=%s AND medicion_id=%s AND periodo=%s AND registro_id=%s",
+                        (job["proceso_id"], job["cuenta_id"], job["medicion_id"], period,
+                         matches[0]["registro_id"]))
                 continue
             new_groups.append((row, period, len(rows)))
             duplicates += len(rows) - 1
@@ -440,6 +470,9 @@ class IngestQueue:
                      incorporated, incorporated,
                      relevance_state, 0 if options.get("sentimiento") else 4,
                      0 if options.get("clusters") else 4, 0 if options.get("bots") else 4,
+                     # El embedding solo se necesita para clustering: si no se piden
+                     # clusters, no aplica (4) y q.llm no lo calcula de más.
+                     0 if options.get("clusters") else 4,
                      row.get("likes"), row.get("comentarios"), row.get("compartidos"),
                      row.get("reproducciones"), row.get("alcance"), task.process_id)
                     for row, identifier, period in accepted
@@ -447,8 +480,8 @@ class IngestQueue:
                 conn.cursor().executemany(
                     "INSERT INTO dat.registro_estado(cuenta_id,medicion_id,periodo,registro_id,"
                     "incorporado,incorporado_en,st_relevancia,st_sentimiento,st_cluster,st_bots,"
-                    "likes,comentarios,compartidos,reproducciones,alcance,ultimo_proceso_id) "
-                    "VALUES (%s,%s,%s,%s,%s,CASE WHEN %s THEN now() ELSE NULL END,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    "st_embedding,likes,comentarios,compartidos,reproducciones,alcance,ultimo_proceso_id) "
+                    "VALUES (%s,%s,%s,%s,%s,CASE WHEN %s THEN now() ELSE NULL END,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     states,
                 )
             rejected_period = int(datetime.now(ZoneInfo("America/Bogota")).strftime("%Y%m"))
@@ -483,6 +516,54 @@ class IngestQueue:
                          "latido=NULL,worker=NULL,error_codigo=NULL,error_mensaje=NULL WHERE id=%s", (task.id,))
             self._aggregate(conn, task.process_id)
         self._notify_terminal(task.process_id)
+        self._mark_replaced(task.process_id)
+        self._plan_compute(task.process_id)
+
+    def _mark_replaced(self, process_id: int) -> None:
+        """Modo 'reemplazar': al cerrar, marca eliminado lo activo que no vino en la carga.
+
+        «Visto» = ``ultimo_proceso_id = process_id`` (nuevos y actualizados). Lo
+        demás activo de la medición pasa a ``estado_id=-1``, saltando períodos
+        archivados. Idempotente y previo al reparto, para no computar lo eliminado.
+        """
+        try:
+            with self._connect() as conn:
+                proc = conn.execute(
+                    "SELECT medicion_id,cuenta_id,estado,opciones FROM prc.proceso WHERE id=%s",
+                    (process_id,)).fetchone()
+                if (proc is None or proc["estado"] != "completado" or proc["cuenta_id"] is None
+                        or not replace_mode(proc["opciones"])):
+                    return
+                result = conn.execute(
+                    "UPDATE dat.registro_estado e SET estado_id=-1 "
+                    "WHERE e.cuenta_id=%s AND e.medicion_id=%s AND e.estado_id<>-1 "
+                    "AND e.ultimo_proceso_id IS DISTINCT FROM %s "
+                    "AND NOT EXISTS (SELECT 1 FROM ops.archivado a WHERE a.cuenta_id=e.cuenta_id "
+                    "AND a.medicion_id=e.medicion_id AND a.periodo=e.periodo AND a.estado<>'rehidratado')",
+                    (proc["cuenta_id"], proc["medicion_id"], process_id))
+            if result.rowcount:
+                logger.info("Reemplazo del proceso %s: %s registros marcados eliminado",
+                            process_id, result.rowcount)
+        except psycopg.Error as exc:
+            logger.warning("No se aplicó el reemplazo del proceso %s; SQLSTATE=%s",
+                           process_id, exc.sqlstate or "desconocido")
+
+    def _plan_compute(self, process_id: int) -> None:
+        """Al cerrar la ingesta, reparte los registros incorporados a q.llm.
+
+        Corre fuera de la transacción de cierre: un fallo aquí no revierte una
+        ingesta ya confirmada. Es idempotente (proceso hijo 'computo:<id>'), así
+        que recover() lo reintenta sin duplicar tareas.
+        """
+        try:
+            with self._connect() as conn:
+                size = chunk_size(conn)
+            planned = PlanCompute(PostgresFanout(self._connect), size).execute(process_id)
+            if planned:
+                logger.info("Reparto q.llm del proceso %s: %s tareas", process_id, planned)
+        except psycopg.Error as exc:
+            logger.warning("No se repartió el cómputo del proceso %s; SQLSTATE=%s",
+                           process_id, exc.sqlstate or "desconocido")
 
     def fail(self, task: ClaimedTask, worker_id: str, code: str) -> None:
         with self._connect() as conn:

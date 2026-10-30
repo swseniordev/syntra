@@ -15,6 +15,9 @@ from app.infrastructure.measurement_queue import MeasurementQueue
 from app.infrastructure.measurement_worker_registry import PostgresMeasurementWorkerRegistry
 from app.infrastructure.ingest_queue import IngestQueue
 from app.infrastructure.ingest_worker_registry import PostgresIngestWorkerRegistry
+from app.infrastructure.apify_queue import ApifyQueue
+from app.infrastructure.llm_queue import LlmQueue
+from app.infrastructure.analysis_queue import AnalysisQueue
 from app.mail import StartTlsMailProvider
 from app.mail_template import MailTemplate
 from app.queue import MailQueue
@@ -35,6 +38,9 @@ CONSUMERS = {
     "q.notificaciones": _mail_consumer,
     "q.mantenimiento": MeasurementQueue,
     "q.ingesta": IngestQueue,
+    "q.apify": ApifyQueue,
+    "q.llm": LlmQueue,
+    "q.analisis": AnalysisQueue,
 }
 
 

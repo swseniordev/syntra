@@ -88,3 +88,38 @@ export async function logout(todas = false) {
 }
 
 export function hasToken() { return Boolean(accessToken); }
+
+export type ActorCatalogo = {
+  id: number; red: string; uso: string; nombre: string; actor: string;
+  max_registros: number; max_urls_por_corrida: number; memoria_mb: number;
+  nota: string | null; estado_id: number;
+};
+
+export type ScraperResumen = {
+  id: number; nombre: string; medicion_id: number; estado_id: number;
+  ejecucion_auto: boolean; gn_activo: boolean; frecuencia_min: number | null;
+  proxima_ejecucion: string | null; redes: string[];
+};
+
+export type EjecucionScraper = { proceso_id: number; estado: string; reutilizado: boolean };
+
+export async function listActors(): Promise<ActorCatalogo[]> {
+  const body = await (await api('/actores?estado=activos&limite=200')).json();
+  return body.items ?? [];
+}
+
+export async function listScrapers(medicionId: number | string): Promise<ScraperResumen[]> {
+  const body = await (await api(`/scrapers?medicion_id=${medicionId}`)).json();
+  return body.items ?? [];
+}
+
+// Cada "ejecutar ahora" es una corrida nueva; el Idempotency-Key solo protege
+// contra el reenvío de la MISMA solicitud (p. ej. el reintento tras un 401).
+export async function executeScraper(scraperId: number, body: Record<string, unknown> = {}): Promise<EjecucionScraper> {
+  const response = await api(`/scrapers/${scraperId}/ejecutar`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': crypto.randomUUID() },
+    body: JSON.stringify(body),
+  });
+  return response.json();
+}

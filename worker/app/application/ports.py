@@ -1,6 +1,6 @@
 """Contratos que usan los consumidores, sin adaptadores concretos."""
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.domain.tasks import ClaimedTask
 
@@ -23,3 +23,11 @@ class Maintenance(Protocol):
 
 class MailProvider(Protocol):
     def send_password(self, recipient: str, password: str, timeout: float, reason: str = "alta") -> None: ...
+
+
+class ScrapeProvider(Protocol):
+    """Lo mínimo que el consumidor q.apify necesita de Apify, sin acoplar su SDK."""
+
+    def start_run(self, actor: str, run_input: dict[str, Any], memory_mb: int) -> str: ...
+    def run_status(self, run_id: str) -> dict[str, Any]: ...
+    def dataset_items(self, dataset_id: str) -> list[dict[str, Any]]: ...

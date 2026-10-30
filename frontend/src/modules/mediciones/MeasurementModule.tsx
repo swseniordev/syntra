@@ -3,8 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Icon } from '../../shared/Icon';
 import { StateBadge } from '../../shared/StateBadge';
 import { EmptyState } from '../../shared/EmptyState';
-import { api } from '../../shared/api';
-import type { Yo } from '../../shared/api';
+import { api, executeScraper, listScrapers } from '../../shared/api';
+import type { Yo, ScraperResumen } from '../../shared/api';
 import { MeasurementFileHistory, MeasurementFilePicker, MeasurementUploadDialog, uploadMeasurementFiles } from './components/MeasurementFiles';
 import type { PendingMeasurementFile } from './components/MeasurementFiles';
 import { LoadActionSelector, loadOptionDefinitions } from './components/LoadActionSelector';
@@ -169,7 +169,7 @@ export function NewMeasurementPage({ yo }: { yo: Yo | null }) {
     Promise.allSettled([
       readItems('/cuentas?estado=activos&limite=200'), readItems('/paises?estado=activos&limite=200'),
       readItems('/prompts?estado=activos&limite=200'), readItems('/regex?estado=activos&limite=200'),
-      readItems('/actores'), readItems('/cruces'), readItems('/formatos'),
+      readItems('/actores?estado=activos&limite=200'), readItems('/cruces'), readItems('/formatos'),
     ]).then(results => {
       if (!active) return;
       const keys = ['accounts', 'countries', 'prompts', 'regex', 'actors', 'crosses', 'formats'];
@@ -460,6 +460,10 @@ export function MeasurementDetail({ yo }: { yo: Yo | null }) {
   const [sourceSummaryNotice, setSourceSummaryNotice] = useState('');
   const [uploadOpen, setUploadOpen] = useState(false);
   const [filesRefreshKey, setFilesRefreshKey] = useState(0);
+  const [scrapers, setScrapers] = useState<ScraperResumen[] | null>(null);
+  const [scrapersNotice, setScrapersNotice] = useState('');
+  const [executingScraper, setExecutingScraper] = useState<number | null>(null);
+  const [scraperRun, setScraperRun] = useState<{ scraperId: number; procesoId: number; reused: boolean } | null>(null);
   useEffect(() => {
     let active = true;
     setLoading(true); setError(''); setMeasurement(null); setRecentProcesses([]); setProcessesNotice('');
@@ -492,6 +496,25 @@ export function MeasurementDetail({ yo }: { yo: Yo | null }) {
       .catch(() => { if (active) setProcessesNotice('No fue posible consultar los procesos disponibles.'); });
     return () => { active = false; };
   }, [id, canViewProcesses]);
+  useEffect(() => {
+    if (!id || section !== 'scraper') return;
+    let active = true;
+    setScrapers(null); setScrapersNotice('');
+    listScrapers(id).then(items => { if (active) setScrapers(items); })
+      .catch(() => { if (active) setScrapersNotice('No se pudo consultar los procesos de scraping de esta medición.'); });
+    return () => { active = false; };
+  }, [id, section]);
+  const runScraper = async (scraperId: number) => {
+    setExecutingScraper(scraperId); setScrapersNotice(''); setScraperRun(null);
+    try {
+      const result = await executeScraper(scraperId);
+      setScraperRun({ scraperId, procesoId: result.proceso_id, reused: result.reutilizado });
+    } catch (cause) {
+      setScrapersNotice(clientError(cause, 'No se pudo encolar la ejecución del scraper.'));
+    } finally {
+      setExecutingScraper(null);
+    }
+  };
   const sources = (measurement?.fuentes || []) as any[];
   const activeSources = sources.filter(source => source.activo);
   const fileSourceActive = activeSources.some(source => source.origen === 'archivo');
@@ -615,6 +638,29 @@ export function MeasurementDetail({ yo }: { yo: Yo | null }) {
     <section className="panel measurement-detail-section"><h2>Fuentes configuradas</h2>{renderSourceDetails()}</section>
   </div>;
   const renderPending = (title: string, detail: string) => <section className="panel measurement-detail-section"><h2>{title}</h2><EmptyState title={`${title} pendiente`} detail={detail} /></section>;
+  const renderScrapers = () => <section className="panel measurement-detail-section">
+    <div className="card-head"><h2>Procesos de scraping</h2></div>
+    {scrapersNotice && <p className="control-notice error" role="alert">{scrapersNotice}</p>}
+    {scraperRun && <p className="control-notice ok" role="status">{scraperRun.reused
+      ? `Ya había una ejecución encolada (proceso #${scraperRun.procesoId}).`
+      : `Ejecución encolada: proceso #${scraperRun.procesoId}.`} <Link to="/procesos">Ver en Procesos</Link></p>}
+    {scrapers === null && !scrapersNotice ? <EmptyState title="Cargando scrapers…" />
+      : scrapers && scrapers.length ? <div className="table-scroll"><table className="measurement-static-table">
+        <thead><tr><th>Nombre</th><th>Redes</th><th>Google News</th><th>Automático</th><th></th></tr></thead>
+        <tbody>{scrapers.map(scraper => <tr key={scraper.id}>
+          <td>{scraper.nombre}{scraper.estado_id !== 1 && <span className="muted"> · inactivo</span>}</td>
+          <td>{scraper.redes.length ? scraper.redes.join(', ') : '—'}</td>
+          <td>{scraper.gn_activo ? 'Sí' : 'No'}</td>
+          <td>{scraper.ejecucion_auto ? `Cada ${scraper.frecuencia_min ?? '—'} min` : 'Solo manual'}</td>
+          <td className="num"><button className="button small" type="button"
+            disabled={!canExecute || scraper.estado_id !== 1 || executingScraper === scraper.id}
+            title={!canExecute ? 'Requiere mediciones:ejecutar' : scraper.estado_id !== 1 ? 'El scraper está inactivo' : 'Lanzar el scraping ahora'}
+            onClick={() => void runScraper(scraper.id)}>
+            <Icon name="cloud" size={14} /> {executingScraper === scraper.id ? 'Encolando…' : 'Ejecutar ahora'}</button></td>
+        </tr>)}</tbody></table></div>
+      : scrapers ? <EmptyState title="Sin procesos de scraping" detail="Esta medición no tiene scrapers configurados. Agrégalos al editar la medición (paso Scrapers)." />
+        : null}
+  </section>;
   return <>
     {loading && <><PageHeading preview={previewMode} title="Cargando medición…" description="Recuperando información de PostgreSQL." /><section className="panel"><EmptyState title="Cargando medición…" /></section></>}
     {error && <><PageHeading preview={previewMode} title="Detalle de medición" description="No se pudo recuperar la información." /><section className="panel"><p className="control-notice error" role="alert">{error}</p></section></>}
@@ -648,7 +694,7 @@ export function MeasurementDetail({ yo }: { yo: Yo | null }) {
       <div id="measurement-tab-panel" role="tabpanel" aria-labelledby={`measurement-tab-${section}`}>
         {section === 'resumen' && renderSummary()}
         {section === 'cargas' && <MeasurementFileHistory measurementId={measurement.id} formatDate={formatClientDateTime} sources={measurement.fuentes || []} refreshKey={filesRefreshKey} />}
-        {section === 'scraper' && renderPending('Scraper', 'La configuración e historial real de scrapers no está disponible en el contrato de detalle actual.')}
+        {section === 'scraper' && renderScrapers()}
         {section === 'fiscalizacion' && renderPending('Fiscalización', 'La API actual no expone los registros ni el flujo de fiscalización de esta medición.')}
         {section === 'registros' && renderPending('Registros', 'La API actual no expone la consulta de registros de la medición.')}
         {section === 'procesamiento' && renderPending('Procesamiento', 'El endpoint disponible solo muestra procesos operativos seleccionados; no expone el historial completo de análisis y procesamiento.')}

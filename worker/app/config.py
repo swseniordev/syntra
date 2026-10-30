@@ -25,6 +25,8 @@ class WorkerSettings:
     mail_template_file: Path | None
     report_root: Path
     upload_root: Path
+    apify_token_file: Path
+    apify_max_memory_mb: int
 
     @classmethod
     def from_environment(cls) -> "WorkerSettings":
@@ -46,6 +48,9 @@ class WorkerSettings:
             "q.reportes": "syntra_report_worker_login",
             "q.mantenimiento": "syntra_measurement_worker_login",
             "q.ingesta": "syntra_ingest_worker_login",
+            "q.apify": "syntra_scraper_worker_login",
+            "q.llm": "syntra_llm_worker_login",
+            "q.analisis": "syntra_analysis_worker_login",
         }
         if queue not in roles:
             raise ValueError("SYNTRA_WORKER_QUEUE no corresponde a un consumidor configurado")
@@ -53,7 +58,9 @@ class WorkerSettings:
         if user != roles[queue]:
             raise ValueError("La identidad PostgreSQL no corresponde a la cola del worker")
         poll = float(os.getenv("SYNTRA_WORKER_POLL_SECONDS", "2"))
-        lease = int(os.getenv("SYNTRA_WORKER_LEASE_SECONDS", "900" if queue == "q.reportes" else "90"))
+        # Un scrape dura minutos: q.apify usa un plazo de recuperación amplio como q.reportes.
+        lease = int(os.getenv("SYNTRA_WORKER_LEASE_SECONDS",
+                              "900" if queue in {"q.reportes", "q.apify"} else "90"))
         if poll <= 0 or poll > 60 or lease < 30 or lease > 3600:
             raise ValueError("Sondeo o plazo de recuperación inválido")
         return cls(
@@ -68,6 +75,9 @@ class WorkerSettings:
                     "q.notificaciones": "syntra_mail_pgpass.conf",
                     "q.mantenimiento": "syntra_measurement_pgpass.conf",
                     "q.ingesta": "syntra_ingest_pgpass.conf",
+                    "q.apify": "syntra_scraper_pgpass.conf",
+                    "q.llm": "syntra_llm_pgpass.conf",
+                    "q.analisis": "syntra_analysis_pgpass.conf",
                 }[queue]))),
             poll_seconds=poll, lease_seconds=lease,
             smtp_host=os.getenv("SYNTRA_SMTP_HOST", ""),
@@ -78,4 +88,6 @@ class WorkerSettings:
             mail_template_file=Path(os.getenv("SYNTRA_MAIL_TEMPLATE_FILE", str(Path(__file__).resolve().parents[1] / "mail_template.json"))),
             report_root=Path(os.getenv("SYNTRA_REPORT_ROOT", str(Path(os.getenv("LOCALAPPDATA", ".")) / "Syntra" / "private" / "auditoria"))),
             upload_root=Path(os.getenv("SYNTRA_UPLOAD_ROOT", str(Path(os.getenv("LOCALAPPDATA", ".")) / "Syntra" / "private" / "ingesta"))),
+            apify_token_file=Path(os.getenv("SYNTRA_APIFY_TOKEN_FILE", "")),
+            apify_max_memory_mb=int(os.getenv("SYNTRA_APIFY_MAX_MEMORY_MB", "4096")),
         )

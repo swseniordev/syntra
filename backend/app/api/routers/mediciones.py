@@ -260,17 +260,6 @@ def editar_medicion(
     return row
 
 
-@router.get("/actores")
-def listar_actores(
-    conn: psycopg.Connection = Depends(connection),
-    _principal: Principal = Depends(require("actores:ver")),
-):
-    return conn.execute(
-        "SELECT a.id,a.nombre,a.actor,r.codigo AS red,a.uso,a.max_registros,a.max_urls_por_corrida,a.memoria_mb,a.nota "
-        "FROM cfg.actor_scraping a JOIN cat.red r ON r.id=a.red_id WHERE a.estado_id=1 ORDER BY r.codigo,a.nombre,a.id"
-    ).fetchall()
-
-
 @router.get("/cruces")
 def listar_cruces(
     conn: psycopg.Connection = Depends(connection),

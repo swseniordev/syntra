@@ -191,10 +191,13 @@ export function MeasurementFileHistory({ measurementId, formatDate, sources = []
   </div>;
 }
 
+export type LoadMode = 'upsert' | 'reemplazar';
+
 export async function uploadMeasurementFiles(measurementId: number, files: PendingMeasurementFile[],
                                              options: Record<string, boolean>,
                                              completed = new Map<File, number>(),
-                                             idempotencyKey: string = crypto.randomUUID()): Promise<number | null> {
+                                             idempotencyKey: string = crypto.randomUUID(),
+                                             mode: LoadMode = 'upsert'): Promise<number | null> {
   if (!files.length) return null;
   const ids: number[] = [];
   for (const { file, formatId } of files) {
@@ -218,7 +221,7 @@ export async function uploadMeasurementFiles(measurementId: number, files: Pendi
   }
   const queued = await (await api(`/mediciones/${measurementId}/cargas/archivos`, {
     method: 'POST', headers: { 'Idempotency-Key': idempotencyKey },
-    body: JSON.stringify({ archivo_ids: ids, al_incorporar: options }),
+    body: JSON.stringify({ archivo_ids: ids, al_incorporar: options, modo: mode }),
   })).json();
   return queued.proceso_id;
 }
@@ -356,6 +359,7 @@ export function MeasurementUploadDialog({ measurementId, sources, canExecute, ca
     const configured = sources.find(source => source.origen === 'archivo')?.al_cargar;
     return Object.fromEntries(loadOptionDefinitions.map(([key]) => [key, Boolean(configured?.[key])]));
   });
+  const [mode, setMode] = useState<LoadMode>('upsert');
   const toast = useToast();
   const batch = useRef({ key: crypto.randomUUID(), completed: new Map<File, number>() });
   const fileSource = sources.find(source => source.origen === 'archivo');
@@ -394,12 +398,19 @@ export function MeasurementUploadDialog({ measurementId, sources, canExecute, ca
     setNotice('');
     setDuplicate(null);
   };
+  const changeMode = (next: LoadMode) => {
+    // Un modo distinto es otra solicitud: renueva la clave de idempotencia.
+    batch.current.key = crypto.randomUUID();
+    setMode(next);
+    setNotice('');
+    setDuplicate(null);
+  };
   const submit = async () => {
     if (!canExecute || !filesActive || !selected.length || saving) return;
     setSaving(true); setNotice(''); setDuplicate(null);
     try {
       const processId = await uploadMeasurementFiles(measurementId, selected,
-        options, batch.current.completed, batch.current.key);
+        options, batch.current.completed, batch.current.key, mode);
       if (!processId) throw new Error('La API no devolvió el proceso de la carga.');
       toast('Carga encolada', `Proceso #${processId}. El procesamiento continúa en segundo plano.`);
       onQueued(processId);
@@ -435,10 +446,23 @@ export function MeasurementUploadDialog({ measurementId, sources, canExecute, ca
             disabled={!canExecute || !filesActive || saving || !canViewFormats} />}
       <LoadActionSelector caption="Al cargar estos archivos" value={options} onChange={changeOption}
         disabled={saving || !canExecute || !filesActive} />
+      <fieldset className="measurement-load-mode" disabled={saving || !canExecute || !filesActive}>
+        <legend>Modo de carga</legend>
+        <label className={`measurement-load-mode-option${mode === 'upsert' ? ' selected' : ''}`}>
+          <input type="radio" name="measurement-load-mode" value="upsert"
+            checked={mode === 'upsert'} onChange={() => changeMode('upsert')} />
+          <span><b>Upsert</b><small>Inserta lo nuevo y actualiza lo existente por URL. No elimina nada.</small></span>
+        </label>
+        <label className={`measurement-load-mode-option${mode === 'reemplazar' ? ' selected' : ''}`}>
+          <input type="radio" name="measurement-load-mode" value="reemplazar"
+            checked={mode === 'reemplazar'} onChange={() => changeMode('reemplazar')} />
+          <span><b>Reemplazar</b><small>Inserta, actualiza y marca como eliminado lo que no venga en esta carga.</small></span>
+        </label>
+      </fieldset>
       <p className="field-help measurement-upload-options-note">{options.incorporar
         ? 'Los registros nuevos válidos se incorporan automáticamente, incluso si seleccionas relevancia. '
         : 'Los registros nuevos válidos quedan sin incorporar para fiscalización. '}
-        Las opciones de relevancia, sentimiento, clusters y bots se guardan con la carga, pero esta ingesta todavía no ejecuta esos análisis.</p>
+        Relevancia, sentimiento y clusters se calculan en segundo plano por los workers (q.llm/q.analisis) cuando están activos; si no, quedan pendientes.</p>
       {notice && <div className="control-notice error" role="alert"><p>{notice}</p>
         {duplicate && <button className="button small" type="button" onClick={() => { onViewPrevious(); onClose(); }}>
           Ver carga anterior</button>}</div>}

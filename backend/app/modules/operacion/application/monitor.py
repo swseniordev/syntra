@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 
 MONITORED_QUEUES = ("q.notificaciones", "q.reportes", "q.ingesta")
-MONITORED_PROCESS_TYPES = ("correo_acceso", "exportacion", "preparar_medicion")
+MONITORED_PROCESS_TYPES = ("correo_acceso", "exportacion", "preparar_medicion", "carga_scraper")
 SAFE_TASK_ERRORS = {
     "correo_proveedor_fallido": "El proveedor de correo rechazó o no confirmó la entrega.",
     "exportacion_fallida": "No fue posible generar la exportación.",
@@ -71,6 +71,10 @@ class OperationsMonitor:
         if row["tipo"] == "preparar_medicion" and (
             kind != "preparacion_medicion" or
             not self.reader.measurement_process_visible(process_id, owner_id, global_access)
+        ):
+            return None
+        if row["tipo"] == "carga_scraper" and not self.reader.measurement_process_visible(
+            process_id, owner_id, global_access
         ):
             return None
         # La salida nunca incluye opciones ni payloads, que pueden contener filtros/datos personales.

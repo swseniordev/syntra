@@ -54,7 +54,8 @@ class FakeRepository:
     def list_files(self, _id, _limit):
         return list(self.rows.values())
 
-    def enqueue(self, measurement, file_ids, actor, key, options):
+    def enqueue(self, measurement, file_ids, actor, key, options, mode="upsert"):
+        self.enqueued_mode = mode
         return {"proceso_id": 31, "estado": "en_cola"}
 
     def commit(self):
@@ -125,6 +126,12 @@ def test_upload_stream_persists_digest_and_prevents_cross_account_access():
         assert store.path(repo.rows[5]["s3_key"]).read_bytes() == b"abcdefg"
         assert cases.enqueue(3, [5], 11, False, "test-idempotency-key-123") == {
             "proceso_id": 31, "estado": "en_cola"}
+        assert repo.enqueued_mode == "upsert"
+        assert cases.enqueue(3, [5], 11, False, "test-idempotency-key-789",
+                             None, "reemplazar")["proceso_id"] == 31
+        assert repo.enqueued_mode == "reemplazar"
+        with pytest.raises(FileProblem, match="modo de carga"):
+            cases.enqueue(3, [5], 11, False, "test-idempotency-key-abc", None, "otro")
         with pytest.raises(FileProblem, match="Medición no encontrada"):
             cases.enqueue(3, [5], 12, False, "test-idempotency-key-456")
 

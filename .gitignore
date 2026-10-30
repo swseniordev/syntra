@@ -79,3 +79,6 @@ frontend/node_modules/
 
 # Ensayo local de navegador, dependiente de SQL excluido
 /backend/scripts/browser_trial.py
+backend/node_modules/
+.DS_Store
+**/.DS_Store

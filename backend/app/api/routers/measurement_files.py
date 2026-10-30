@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Literal
 
 import psycopg
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
@@ -34,6 +34,7 @@ class CargaArchivosIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     archivo_ids: list[int] = Field(min_length=1, max_length=100)
     al_incorporar: dict[str, bool] | None = None
+    modo: Literal["upsert", "reemplazar"] = "upsert"
 
 
 def use_cases(conn: psycopg.Connection = Depends(connection)) -> MeasurementFileUseCases:
@@ -114,7 +115,7 @@ def encolar_archivos(id: int, body: CargaArchivosIn,
                      cases: MeasurementFileUseCases = Depends(use_cases)):
     try:
         return cases.enqueue(id, body.archivo_ids, principal.user["id"], _global(principal),
-                             idempotency_key, body.al_incorporar)
+                             idempotency_key, body.al_incorporar, body.modo)
     except FileProblem as exc:
         _translate(exc)
     except ValueError as exc:

@@ -129,7 +129,8 @@ class PostgresMeasurementFileRepository:
         ).fetchall()
 
     def enqueue(self, measurement: dict, file_ids: list[int], actor_id: int,
-                idempotency_key: str, options: dict[str, bool] | None) -> dict[str, Any]:
+                idempotency_key: str, options: dict[str, bool] | None,
+                mode: str = "upsert") -> dict[str, Any]:
         if not self.file_source_active(measurement["id"]):
             raise ValueError("La fuente de archivos no está activa en la medición")
         key = "carga-archivo:" + idempotency_key
@@ -142,14 +143,17 @@ class PostgresMeasurementFileRepository:
         normalized = sorted(file_ids)
         if previous is not None:
             old = previous["opciones"] or {}
-            if previous["medicion_id"] != measurement["id"] or old.get("archivo_ids") != normalized or old.get("al_incorporar") != options:
+            # El modo de carga vive en opciones.modo (upsert/reemplazar); es distinto
+            # de prc.proceso.modo (manual/automatico), que indica el disparo.
+            if (previous["medicion_id"] != measurement["id"] or old.get("archivo_ids") != normalized
+                    or old.get("al_incorporar") != options or (old.get("modo") or "upsert") != mode):
                 raise ValueError("La clave de idempotencia ya pertenece a otra solicitud")
             return {"proceso_id": previous["id"], "estado": previous["estado"]}
         process = self.conn.execute(
             "INSERT INTO prc.proceso(medicion_id,cuenta_id,tipo,modo,estado,total,creado_por,idempotencia,opciones) "
             "VALUES (%s,%s,'carga_archivo','manual','en_cola',%s,%s,%s,%s) RETURNING id",
             (measurement["id"], measurement["cuenta_id"], len(file_ids), actor_id, key,
-             Jsonb({"archivo_ids": normalized, "al_incorporar": options})),
+             Jsonb({"archivo_ids": normalized, "al_incorporar": options, "modo": mode})),
         ).fetchone()
         for file_id in normalized:
             self.conn.execute(
